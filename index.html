@@ -45,6 +45,13 @@
   .sidebar-footer{padding:10px;border-top:1px solid var(--border)}
   .btn-new{width:100%;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:9px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:6px}
   .btn-new:hover{opacity:.85}
+  .btn-new:disabled{opacity:.4;cursor:not-allowed}
+
+  /* LOADING SIDEBAR */
+  .sidebar-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:10px;color:var(--text3)}
+  .sidebar-loading .spin{width:20px;height:20px;border-width:2px;border-color:var(--border2);border-top-color:var(--accent)}
+  .sidebar-err{padding:16px;font-size:12px;color:var(--red);text-align:center;line-height:1.6}
+  .sidebar-err button{margin-top:8px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);border-radius:var(--radius-sm);padding:5px 12px;cursor:pointer;font-size:12px}
 
   /* CONFIG BANNER */
   .config-banner{background:var(--amber-dim);border-bottom:1px solid var(--amber);padding:9px 20px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--amber);flex-shrink:0}
@@ -62,11 +69,11 @@
   .content::-webkit-scrollbar{width:5px}
   .content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 
-  /* EMPTY STATE */
+  /* EMPTY / LOADING STATES */
   .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3);text-align:center}
   .empty-icon{font-size:36px;opacity:.3}
   .empty-title{font-size:15px;font-weight:500;color:var(--text2)}
-  .empty-sub{font-size:13px;max-width:260px}
+  .empty-sub{font-size:13px;max-width:260px;line-height:1.6}
 
   /* BUTTONS */
   .btn{padding:7px 15px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:var(--surface2);color:var(--text);transition:all .15s;display:inline-flex;align-items:center;gap:6px}
@@ -125,7 +132,7 @@
   .status-dot.red{background:var(--red)}
   .status-dot.gray{background:var(--text3)}
 
-  /* CONFIG MODAL */
+  /* MODALS */
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:100}
   .modal-overlay.open{display:flex}
   .modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:26px;max-width:460px;width:100%;margin:20px}
@@ -151,7 +158,7 @@
 
 <!-- CONFIG BANNER -->
 <div class="config-banner" id="configBanner">
-  ⚠ <strong>Configuración pendiente:</strong> Ingresá la URL del webhook y el token de seguridad antes de usar el panel.
+  ⚠ <strong>Configuración pendiente:</strong> Ingresá la URL del webhook y el token antes de usar el panel.
   <a onclick="openConfig()">Configurar ahora →</a>
 </div>
 
@@ -166,9 +173,14 @@
     <div class="sidebar-search">
       <input class="search-input" id="searchInput" type="search" placeholder="Buscar…" oninput="renderSidebar(this.value)">
     </div>
-    <div class="sidebar-list" id="sidebarList"></div>
+    <div class="sidebar-list" id="sidebarList">
+      <div class="sidebar-loading">
+        <div class="spin" style="width:20px;height:20px;border-color:var(--border2);border-top-color:var(--accent)"></div>
+        <span style="font-size:12px">Cargando datos…</span>
+      </div>
+    </div>
     <div class="sidebar-footer">
-      <button class="btn-new" onclick="newItem()">+ Nuevo servicio</button>
+      <button class="btn-new" id="btnNew" onclick="newItem()" disabled>+ Nuevo servicio</button>
     </div>
   </aside>
 
@@ -176,55 +188,58 @@
   <main class="main">
     <div class="topbar">
       <div class="topbar-left">
-        <div class="topbar-title" id="topbarTitle">Seleccioná un servicio</div>
+        <div class="topbar-title" id="topbarTitle">Cargando datos de Postgres…</div>
         <div id="topbarStatus"></div>
       </div>
       <div class="topbar-actions" id="topbarActions" style="display:none">
-        <button class="btn" onclick="openConfig()" title="Configuración del webhook">⚙ Config</button>
-        <button class="btn btn-danger" onclick="confirmDelete()" id="btnDelete">Inactivar</button>
+        <button class="btn" onclick="reloadData()" title="Recargar datos desde Postgres">↺ Recargar</button>
+        <button class="btn" onclick="openConfig()">⚙ Config</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Inactivar</button>
         <button class="btn btn-primary" onclick="saveItem()" id="btnSave">Guardar en Postgres</button>
       </div>
       <div id="topbarActionsEmpty" style="display:flex;gap:8px">
+        <button class="btn" onclick="reloadData()">↺ Recargar</button>
         <button class="btn" onclick="openConfig()">⚙ Configuración</button>
       </div>
     </div>
 
     <div class="content" id="mainContent">
       <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <div class="empty-title">Ningún servicio seleccionado</div>
-        <div class="empty-sub">Elegí un servicio de la lista o creá uno nuevo.</div>
+        <div class="empty-icon" id="loadIcon">⏳</div>
+        <div class="empty-title" id="loadTitle">Cargando datos…</div>
+        <div class="empty-sub" id="loadSub">Conectando con Postgres a través del webhook.</div>
       </div>
     </div>
   </main>
 </div>
 
-<!-- TOAST -->
 <div class="toast-wrap" id="toastWrap"></div>
 
 <!-- MODAL CONFIG -->
 <div class="modal-overlay" id="configModal">
   <div class="modal">
     <div class="modal-title">Configuración del webhook</div>
-    <div class="modal-body">
-      Ingresá la URL del webhook de n8n y el token de seguridad.<br>
-      Estos datos se guardan localmente en este navegador.
+    <div class="modal-body">Ingresá las URLs de los webhooks de n8n y el token de seguridad.<br>Estos datos se guardan en este navegador.</div>
+    <div class="field" style="margin-bottom:12px">
+      <label>URL webhook POST (guardar)</label>
+      <span class="hint">Nodo "Webhook - Recibir desde Panel" → Production URL</span>
+      <input class="input" id="cfgUrl" placeholder="https://n8n.vecinosvendemas.com/webhook/panel-ventas-upsert">
     </div>
-    <div class="field" style="margin-bottom:14px">
-      <label>URL del webhook n8n</label>
-      <span class="hint">La encontrás en el nodo "Webhook" de n8n, pestaña Production URL.</span>
-      <input class="input" id="cfgUrl" placeholder="https://n8n.vecinos.com/webhook/panel-ventas-upsert">
+    <div class="field" style="margin-bottom:12px">
+      <label>URL webhook GET (cargar datos)</label>
+      <span class="hint">Nodo "Webhook - GET datos" → Production URL</span>
+      <input class="input" id="cfgGetUrl" placeholder="https://n8n.vecinosvendemas.com/webhook/panel-ventas-data">
     </div>
     <div class="field" style="margin-bottom:20px">
       <label>Token de seguridad</label>
-      <span class="hint">El valor que configuraste en la credencial "Panel Ventas Token" en n8n.</span>
-      <input class="input" id="cfgToken" type="password" placeholder="tu-token-secreto">
+      <span class="hint">El valor de la credencial "Panel Ventas Token" en n8n.</span>
+      <input class="input" id="cfgToken" type="password" placeholder="PanelVentas2026#Secreto">
     </div>
     <div id="cfgStatus" style="margin-bottom:16px"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeConfig()">Cancelar</button>
       <button class="btn" onclick="testWebhook()" id="btnTest">Probar conexión</button>
-      <button class="btn btn-primary" onclick="saveConfig()">Guardar</button>
+      <button class="btn btn-primary" onclick="saveConfig()">Guardar y recargar</button>
     </div>
   </div>
 </div>
@@ -233,7 +248,7 @@
 <div class="modal-overlay" id="deleteModal">
   <div class="modal">
     <div class="modal-title">¿Inactivar este servicio?</div>
-    <div class="modal-body" id="deleteModalBody">El campo "servicio" se cambiará a INACTIVO y se guardará en Postgres.</div>
+    <div class="modal-body" id="deleteModalBody"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeDeleteModal()">Cancelar</button>
       <button class="btn btn-danger" onclick="doDelete()">Sí, inactivar</button>
@@ -244,16 +259,15 @@
 <script>
 // ── CONSTANTES ───────────────────────────────
 const SERVICIOS = [
-  {value:'academia_vecinos',   label:'Academia Vecinos'},
-  {value:'automatizaciones_ia',label:'Automatizaciones IA'},
-  {value:'diseno_marca',       label:'Diseño de Marca'},
-  {value:'diseno_web',         label:'Diseño Web'},
-  {value:'fotografia',         label:'Fotografía'},
-  {value:'redes_sociales',     label:'Redes Sociales'},
-  {value:'video_ugc',          label:'Video UGC'},
-  {value:'INACTIVO',           label:'INACTIVO'},
+  {value:'academia_vecinos',    label:'Academia Vecinos'},
+  {value:'automatizaciones_ia', label:'Automatizaciones IA'},
+  {value:'diseno_marca',        label:'Diseño de Marca'},
+  {value:'diseno_web',          label:'Diseño Web'},
+  {value:'fotografia',          label:'Fotografía'},
+  {value:'redes_sociales',      label:'Redes Sociales'},
+  {value:'video_ugc',           label:'Video UGC'},
+  {value:'INACTIVO',            label:'INACTIVO'},
 ];
-
 const COLORS = {
   academia_vecinos:'#7c6fff', automatizaciones_ia:'#22c97a',
   diseno_marca:'#f0a832',     diseno_web:'#4f9cf0',
@@ -262,47 +276,42 @@ const COLORS = {
 };
 
 // ── ESTADO ───────────────────────────────────
-let DATA = [
-  {id:1,  servicio:'INACTIVO',           drive_file_id:'16uK54IgGmtVK66yED_cQATIgwSLGs-uX', drive_file_name:'taller_campana_ads.jpeg',           drive_folder_id:'1Lk2GYOHXnEujn4OKrE1Oyj-6gnUc_xWq', image_public_url:'https://drive.google.com/uc?export=download&id=16uK54IgGmtVK66yED_cQATIgwSLGs-uX', texto:'TALLER DE CAMPAÑAS ADS\n\nAcademia Vecinos Vende Más\nInversión: U$100', localStatus:'saved'},
-  {id:2,  servicio:'INACTIVO',           drive_file_id:'1f_7pkIDUHCBPXvGbi4f8wxjOASD-0Ws6', drive_file_name:'taller_comunicacion_oratoria.jpeg', drive_folder_id:'1Lk2GYOHXnEujn4OKrE1Oyj-6gnUc_xWq', image_public_url:'https://drive.google.com/uc?export=download&id=1f_7pkIDUHCBPXvGbi4f8wxjOASD-0Ws6', texto:'CURSO DE COMUNICACIÓN Y ORATORIA\n\nAcademia Vecinos Vende Más', localStatus:'saved'},
-  {id:5,  servicio:'automatizaciones_ia',drive_file_id:'1PNrttQE9JjwtjWG3wb5tgpQy0ZmCMBtA', drive_file_name:'2.png',                            drive_folder_id:'14yKFKwruD2C-BfPzVzCIhwHDVnWXwGtR', image_public_url:'https://drive.google.com/uc?export=download&id=1PNrttQE9JjwtjWG3wb5tgpQy0ZmCMBtA', texto:'¿Qué hacemos?\n\nDesarrollamos soluciones de automatización e IA a medida.', localStatus:'saved'},
-  {id:6,  servicio:'automatizaciones_ia',drive_file_id:'1SmOHtdrP5hcLJeG0R_zz7BWijI7u95yt', drive_file_name:'1.png',                            drive_folder_id:'14yKFKwruD2C-BfPzVzCIhwHDVnWXwGtR', image_public_url:'https://drive.google.com/uc?export=download&id=1SmOHtdrP5hcLJeG0R_zz7BWijI7u95yt', texto:'SISTEMAS DE AUTOMATIZACIÓN - IA\n\nAutomatiza tus procesos y conversa con tus clientes las 24/7', localStatus:'saved'},
-  {id:10, servicio:'diseno_marca',        drive_file_id:'1P2SmRH1ZACSLKVMKqFXN7O2RkgulTB4j', drive_file_name:'diseno_marca.jpeg',                drive_folder_id:'1NslpDzu6z7cnG74PfgGZBM53kezgN82X', image_public_url:'https://drive.google.com/uc?export=download&id=1P2SmRH1ZACSLKVMKqFXN7O2RkgulTB4j', texto:'DISEÑO DE MARCA\n\nVecinos Vende Más\n\nINVERSIÓN\n180 US$', localStatus:'saved'},
-  {id:9,  servicio:'diseno_web',          drive_file_id:'15iqa_sk9On2sfpn0Qx8jAek5wj38E78R', drive_file_name:'diseño y admon de paginas web.png',drive_folder_id:'19aEawmhHJ_TesIBzidAzbCNw7RF0OEvA', image_public_url:'https://drive.google.com/uc?export=download&id=15iqa_sk9On2sfpn0Qx8jAek5wj38E78R', texto:'Web Básica\n$350 ANUAL\n- Diseño web 4 pestañas\n- Hosting 10GB\n- Dominio', localStatus:'saved'},
-  {id:15, servicio:'fotografia',          drive_file_id:'1gZ3zA5hjRujzeZnWLW0tOrHysjM2bXun', drive_file_name:'fotografia.jpeg',                  drive_folder_id:'1FRd4v0xz7PvoQ88MPhW5o7y-J850xv9Y', image_public_url:'https://drive.google.com/uc?export=download&id=1gZ3zA5hjRujzeZnWLW0tOrHysjM2bXun', texto:'PACK DE FOTOGRAFÍA\n\nVecinos Vende Más\n\nINVERSIÓN\nU$130', localStatus:'saved'},
-  {id:11, servicio:'redes_sociales',      drive_file_id:'1yf0Zh2wkdtOjZ6Mu4RFuAjXqR0RiMWxz', drive_file_name:'completo.jpeg',                    drive_folder_id:'1yxpCn-xKZvtg-IxnEccamtmAnmq5kDyb', image_public_url:'https://drive.google.com/uc?export=download&id=1yf0Zh2wkdtOjZ6Mu4RFuAjXqR0RiMWxz', texto:'PAQUETE COMPLETO\n\nVecinos Vende Más\nINVERSIÓN\nU$240 x Mes', localStatus:'saved'},
-  {id:16, servicio:'video_ugc',           drive_file_id:'19aGRhoEoC4Cv1Yogx5-0Nc7-u0JSTZ3-', drive_file_name:'video_ugc.jpeg',                   drive_folder_id:'1oob1px1u89wU4tx9_cRIKDgbVLHRWKU7', image_public_url:'https://drive.google.com/uc?export=download&id=19aGRhoEoC4Cv1Yogx5-0Nc7-u0JSTZ3-', texto:'VIDEO UGC\n\nVecinos Vende Más\nINVERSIÓN\nU$60 x Mes', localStatus:'saved'},
-];
+let DATA         = [];
+let currentId    = null;
+let isDirty      = false;
+let nextTempId   = 9000;
+let dataLoaded   = false;
 
-let currentId = null;
-let isDirty = false;
-let nextTempId = 9000;
-
-// ── CONFIG (localStorage) ────────────────────
+// ── CONFIG ───────────────────────────────────
 function loadConfig(){
   return {
-    url:   localStorage.getItem('pv_webhook_url')   || '',
-    token: localStorage.getItem('pv_webhook_token') || ''
+    url:    localStorage.getItem('pv_webhook_url')     || '',
+    getUrl: localStorage.getItem('pv_webhook_get_url') || '',
+    token:  localStorage.getItem('pv_webhook_token')   || ''
   };
 }
 function saveConfig(){
-  const url   = document.getElementById('cfgUrl').value.trim();
-  const token = document.getElementById('cfgToken').value.trim();
-  if(!url){ toast('Ingresá la URL del webhook','warn'); return; }
-  localStorage.setItem('pv_webhook_url',   url);
-  localStorage.setItem('pv_webhook_token', token);
+  const url    = document.getElementById('cfgUrl').value.trim();
+  const getUrl = document.getElementById('cfgGetUrl').value.trim();
+  const token  = document.getElementById('cfgToken').value.trim();
+  if(!url || !getUrl){ toast('Ingresá ambas URLs del webhook','warn'); return; }
+  localStorage.setItem('pv_webhook_url',     url);
+  localStorage.setItem('pv_webhook_get_url', getUrl);
+  localStorage.setItem('pv_webhook_token',   token);
   closeConfig();
   checkConfigBanner();
-  toast('Configuración guardada','ok');
+  toast('Configuración guardada — recargando datos…','ok');
+  loadDataFromPostgres();
 }
 function checkConfigBanner(){
-  const {url} = loadConfig();
-  document.getElementById('configBanner').classList.toggle('hidden', !!url);
+  const {url, getUrl} = loadConfig();
+  document.getElementById('configBanner').classList.toggle('hidden', !!(url && getUrl));
 }
 function openConfig(){
-  const {url,token} = loadConfig();
-  document.getElementById('cfgUrl').value   = url;
-  document.getElementById('cfgToken').value = token;
+  const {url, getUrl, token} = loadConfig();
+  document.getElementById('cfgUrl').value    = url;
+  document.getElementById('cfgGetUrl').value = getUrl;
+  document.getElementById('cfgToken').value  = token;
   document.getElementById('cfgStatus').innerHTML = '';
   document.getElementById('configModal').classList.add('open');
 }
@@ -311,85 +320,175 @@ function closeConfig(){ document.getElementById('configModal').classList.remove(
 async function testWebhook(){
   const url   = document.getElementById('cfgUrl').value.trim();
   const token = document.getElementById('cfgToken').value.trim();
-  if(!url){ document.getElementById('cfgStatus').innerHTML = '<div class="warn-box">Ingresá la URL primero.</div>'; return; }
+  if(!url){ document.getElementById('cfgStatus').innerHTML='<div class="warn-box">Ingresá la URL POST primero.</div>'; return; }
   const btn = document.getElementById('btnTest');
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Probando…';
-  document.getElementById('cfgStatus').innerHTML = '';
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Probando…';
+  document.getElementById('cfgStatus').innerHTML='';
   try {
     const headers = {'Content-Type':'application/json'};
     if(token) headers['X-Panel-Token'] = token;
-    // Payload de prueba con id=0 → el Code node lo rechazará con 400, lo que confirma que el webhook ESTÁ activo
     const r = await fetch(url, {method:'POST', headers, body: JSON.stringify({_test:true,id:0,servicio:'test',texto:'test'})});
-    const body = await r.text();
-    if(r.status === 401){
-      document.getElementById('cfgStatus').innerHTML = '<div class="warn-box">⚠ Token incorrecto o no configurado en n8n.</div>';
-    } else if(r.status === 400 || r.status === 200){
-      document.getElementById('cfgStatus').innerHTML = '<div class="info-box">✓ Webhook activo y respondiendo correctamente.</div>';
+    if(r.status===401){
+      document.getElementById('cfgStatus').innerHTML='<div class="warn-box">⚠ Token incorrecto.</div>';
+    } else if(r.status===400||r.status===200){
+      document.getElementById('cfgStatus').innerHTML='<div class="info-box">✓ Webhook POST activo y respondiendo correctamente.</div>';
     } else {
-      document.getElementById('cfgStatus').innerHTML = `<div class="warn-box">Respuesta inesperada: ${r.status} — ${body.substring(0,120)}</div>`;
+      document.getElementById('cfgStatus').innerHTML=`<div class="warn-box">Respuesta inesperada: ${r.status}</div>`;
     }
-  } catch(e) {
-    document.getElementById('cfgStatus').innerHTML = `<div class="warn-box">No se pudo conectar: ${e.message}<br>Verificá que n8n esté activo y la URL sea correcta.</div>`;
+  } catch(e){
+    document.getElementById('cfgStatus').innerHTML=`<div class="warn-box">No se pudo conectar: ${e.message}</div>`;
   }
-  btn.disabled = false; btn.textContent = 'Probar conexión';
+  btn.disabled=false; btn.textContent='Probar conexión';
+}
+
+// ── CARGA DE DATOS DESDE POSTGRES ────────────
+async function loadDataFromPostgres(){
+  const {getUrl, token} = loadConfig();
+
+  // Sin configuración: mostrar estado para configurar
+  if(!getUrl){
+    document.getElementById('sidebarList').innerHTML =
+      `<div class="sidebar-err">Configurá el webhook para cargar los datos.<br><button onclick="openConfig()">⚙ Configurar</button></div>`;
+    document.getElementById('loadIcon').textContent  = '⚙';
+    document.getElementById('loadTitle').textContent = 'Configuración requerida';
+    document.getElementById('loadSub').textContent   = 'Presioná "Configuración" e ingresá las URLs del webhook y el token.';
+    document.getElementById('topbarTitle').textContent = 'Sin configurar';
+    return;
+  }
+
+  // Mostrar loading
+  document.getElementById('sidebarList').innerHTML =
+    `<div class="sidebar-loading"><div class="spin" style="width:20px;height:20px;border-color:var(--border2);border-top-color:var(--accent)"></div><span style="font-size:12px">Cargando datos…</span></div>`;
+  document.getElementById('loadIcon').textContent  = '⏳';
+  document.getElementById('loadTitle').textContent = 'Cargando datos…';
+  document.getElementById('loadSub').textContent   = 'Conectando con Postgres a través del webhook.';
+  document.getElementById('topbarTitle').textContent = 'Cargando…';
+  document.getElementById('btnNew').disabled = true;
+
+  try {
+    const headers = {};
+    if(token) headers['X-Panel-Token'] = token;
+    const resp = await fetch(getUrl, {method:'GET', headers});
+
+    if(!resp.ok){
+      throw new Error(`El servidor respondió con error ${resp.status}`);
+    }
+
+    const result = await resp.json();
+    const rows = result.data || result;
+
+    if(!Array.isArray(rows)){
+      throw new Error('La respuesta no tiene el formato esperado');
+    }
+
+    // Mapear rows a DATA con localStatus
+    DATA = rows.map(row => ({
+      id:               row.id,
+      servicio:         row.servicio         || '',
+      drive_file_id:    row.drive_file_id    || '',
+      drive_file_name:  row.drive_file_name  || '',
+      drive_folder_id:  row.drive_folder_id  || '',
+      image_public_url: row.image_public_url || '',
+      texto:            row.texto            || '',
+      created_at:       row.created_at       || '',
+      localStatus:      'saved'
+    }));
+
+    dataLoaded = true;
+    nextTempId = Math.max(9000, ...DATA.map(d => typeof d.id === 'number' ? d.id + 1 : 9000));
+
+    document.getElementById('btnNew').disabled = false;
+    document.getElementById('topbarTitle').textContent = 'Seleccioná un servicio';
+    document.getElementById('loadIcon').textContent  = '📋';
+    document.getElementById('loadTitle').textContent = 'Ningún servicio seleccionado';
+    document.getElementById('loadSub').textContent   = `${DATA.length} registros cargados desde Postgres. Elegí uno de la lista o creá uno nuevo.`;
+
+    renderSidebar();
+    toast(`${DATA.length} registros cargados desde Postgres`, 'ok');
+
+  } catch(e){
+    document.getElementById('sidebarList').innerHTML =
+      `<div class="sidebar-err">Error al cargar datos:<br>${e.message}<br><button onclick="loadDataFromPostgres()">↺ Reintentar</button></div>`;
+    document.getElementById('loadIcon').textContent  = '⚠';
+    document.getElementById('loadTitle').textContent = 'Error al cargar datos';
+    document.getElementById('loadSub').textContent   = `${e.message}. Verificá la configuración del webhook GET y que n8n esté activo.`;
+    document.getElementById('topbarTitle').textContent = 'Error de carga';
+    toast(`Error al cargar: ${e.message}`, 'err');
+  }
+}
+
+async function reloadData(){
+  currentId = null;
+  isDirty   = false;
+  document.getElementById('topbarActions').style.display      = 'none';
+  document.getElementById('topbarActionsEmpty').style.display = 'flex';
+  document.getElementById('mainContent').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">⏳</div>
+      <div class="empty-title">Recargando datos…</div>
+      <div class="empty-sub">Conectando con Postgres.</div>
+    </div>`;
+  await loadDataFromPostgres();
 }
 
 // ── HELPERS ──────────────────────────────────
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function svcLabel(v){ return (SERVICIOS.find(s=>s.value===v)||{label:v}).label; }
 function svcColor(v){ return COLORS[v]||'#9090a8'; }
-
 function extractDriveId(raw){
-  raw = (raw||'').trim();
-  let m = raw.match(/[?&]id=([a-zA-Z0-9_-]{15,})/);
-  if(m) return m[1];
-  m = raw.match(/\/d\/([a-zA-Z0-9_-]{15,})/);
-  if(m) return m[1];
+  raw=(raw||'').trim();
+  let m=raw.match(/[?&]id=([a-zA-Z0-9_-]{15,})/); if(m) return m[1];
+  m=raw.match(/\/d\/([a-zA-Z0-9_-]{15,})/);        if(m) return m[1];
   if(/^[a-zA-Z0-9_-]{15,}$/.test(raw)) return raw;
   return null;
 }
-
-function toast(msg, type='ok'){
-  const w = document.getElementById('toastWrap');
-  const t = document.createElement('div');
-  const icons = {ok:'✓',err:'✕',info:'ℹ',warn:'⚠'};
-  t.className = `toast toast-${type}`;
-  t.innerHTML = `<span>${icons[type]||'ℹ'}</span>${msg}`;
+function toast(msg,type='ok'){
+  const w=document.getElementById('toastWrap');
+  const t=document.createElement('div');
+  const icons={ok:'✓',err:'✕',info:'ℹ',warn:'⚠'};
+  t.className=`toast toast-${type}`;
+  t.innerHTML=`<span>${icons[type]||'ℹ'}</span>${msg}`;
   w.appendChild(t);
-  setTimeout(()=>t.remove(), 3800);
+  setTimeout(()=>t.remove(),3800);
 }
 
 // ── SIDEBAR ───────────────────────────────────
 function renderSidebar(q=''){
-  q = q.toLowerCase();
-  const groups = {};
+  if(!dataLoaded) return;
+  q=q.toLowerCase();
+  const groups={};
   DATA.forEach(item=>{
-    const lbl = svcLabel(item.servicio);
+    const lbl=svcLabel(item.servicio);
     if(q && !lbl.toLowerCase().includes(q) && !(item.drive_file_name||'').toLowerCase().includes(q)) return;
     if(!groups[item.servicio]) groups[item.servicio]=[];
     groups[item.servicio].push(item);
   });
 
-  const order = [...new Set(DATA.map(d=>d.servicio))].sort((a,b)=>{
+  const order=[...new Set(DATA.map(d=>d.servicio))].sort((a,b)=>{
     if(a==='INACTIVO') return 1; if(b==='INACTIVO') return -1; return 0;
   });
 
-  let html = '';
+  let html='';
   order.forEach(svc=>{
-    const items = groups[svc]; if(!items||!items.length) return;
-    html += `<div class="group-label">${svcLabel(svc)}</div>`;
+    const items=groups[svc]; if(!items||!items.length) return;
+    html+=`<div class="group-label">${svcLabel(svc)}</div>`;
     items.forEach(item=>{
-      const active = item.id===currentId ? 'active':'';
-      const badgeMap = {saved:'<span class="badge badge-done">Guardado</span>', dirty:'<span class="badge badge-saving">Sin guardar</span>', saving:'<span class="badge badge-saving">Guardando…</span>', error:'<span class="badge badge-error">Error</span>'};
-      const badge = item.localStatus==='saved' && item.servicio==='INACTIVO'
-        ? '<span class="badge" style="background:var(--surface2);color:var(--text3)">Inactivo</span>'
-        : (badgeMap[item.localStatus]||'');
-      html += `<div class="list-item ${active}" onclick="selectItem(${item.id})">
+      const active=item.id===currentId?'active':'';
+      const badgeMap={
+        saved: item.servicio==='INACTIVO'
+          ? '<span class="badge" style="background:var(--surface2);color:var(--text3)">Inactivo</span>'
+          : '<span class="badge badge-done">Guardado</span>',
+        dirty: '<span class="badge badge-saving">Sin guardar</span>',
+        saving:'<span class="badge badge-saving">Guardando…</span>',
+        error: '<span class="badge badge-error">Error</span>',
+        new:   '<span class="badge badge-saving">Nuevo</span>',
+      };
+      html+=`<div class="list-item ${active}" onclick="selectItem(${JSON.stringify(item.id)})">
         <div class="item-dot" style="background:${svcColor(item.servicio)}"></div>
         <div class="item-info">
           <div class="item-name">${esc(item.drive_file_name||'Nuevo servicio')}</div>
           <div class="item-meta">ID ${item.id}</div>
-        </div>${badge}</div>`;
+        </div>${badgeMap[item.localStatus]||''}</div>`;
     });
   });
 
@@ -400,15 +499,15 @@ function renderSidebar(q=''){
 // ── FORMULARIO ───────────────────────────────
 function selectItem(id){
   if(isDirty && !confirm('Tenés cambios sin guardar. ¿Descartarlos?')) return;
-  isDirty = false;
-  currentId = id;
+  isDirty=false;
+  currentId=id;
   renderSidebar(document.getElementById('searchInput').value);
   renderForm(DATA.find(d=>d.id===id));
 }
 
 function renderForm(item){
   document.getElementById('topbarTitle').textContent = item.drive_file_name || `Nuevo servicio (ID ${item.id})`;
-  document.getElementById('topbarActions').style.display = 'flex';
+  document.getElementById('topbarActions').style.display      = 'flex';
   document.getElementById('topbarActionsEmpty').style.display = 'none';
   updateTopbarStatus(item);
 
@@ -416,12 +515,10 @@ function renderForm(item){
 
   document.getElementById('mainContent').innerHTML = `
     <div class="id-badge"><span style="opacity:.5">ID</span><strong>${item.id}</strong></div>
-
     <div class="info-box">
       <strong>Cómo funciona:</strong> Editá los campos y presioná <strong>Guardar en Postgres</strong>.
-      El cambio se aplica directamente en la base de datos a través del webhook de n8n. Sin tocar el Sheet.
+      El cambio se aplica directamente en la base de datos. Sin tocar el Sheet.
     </div>
-
     <div class="form-grid">
 
       <div class="field">
@@ -431,13 +528,13 @@ function renderForm(item){
 
       <div class="field">
         <label>Nombre del archivo en Drive</label>
-        <span class="hint">Nombre con extensión. Ej: taller_campana_ads.jpeg</span>
+        <span class="hint">Ej: taller_campana_ads.jpeg</span>
         <input class="input" id="f_drive_file_name" value="${esc(item.drive_file_name)}" oninput="markDirty()" placeholder="nombre_archivo.jpg">
       </div>
 
       <div class="field span2">
         <label>ID de carpeta en Drive</label>
-        <span class="hint">ID de la carpeta de Drive donde está la imagen de este servicio.</span>
+        <span class="hint">ID de la carpeta donde está guardada la imagen.</span>
         <div class="input-row">
           <input class="input" id="f_drive_folder_id" value="${esc(item.drive_folder_id)}" oninput="markDirty()" placeholder="1Lk2GYOHXnEujn4OKrE1Oyj-6gnUc_xWq">
           <button class="copy-btn" onclick="copyVal('f_drive_folder_id')">Copiar</button>
@@ -447,15 +544,15 @@ function renderForm(item){
       <div class="field span2">
         <div class="divider"><span class="divider-label">Imagen</span><div class="divider-line"></div></div>
         <label>ID o URL del archivo de imagen en Drive</label>
-        <span class="hint">Pegá el ID del archivo, la URL del navegador o la URL de compartir. El panel genera la URL de descarga correcta automáticamente.</span>
+        <span class="hint">Pegá el ID del archivo, la URL del navegador o la URL de compartir. El panel genera la URL de descarga automáticamente.</span>
         <div class="drive-card">
           <div class="input-row">
-            <input class="input" id="f_drive_raw" value="${esc(item.drive_file_id)}" oninput="onDriveInput()" placeholder="ID del archivo o URL de Drive">
+            <input class="input" id="f_drive_raw" value="${esc(item.drive_file_id)}" oninput="onDriveInput()" placeholder="ID o URL de Drive">
             <button class="copy-btn" onclick="copyDownloadUrl()">Copiar URL</button>
           </div>
           <div id="drivePreview"></div>
         </div>
-        <input type="hidden" id="f_drive_file_id" value="${esc(item.drive_file_id)}">
+        <input type="hidden" id="f_drive_file_id"    value="${esc(item.drive_file_id)}">
         <input type="hidden" id="f_image_public_url" value="${esc(item.image_public_url)}">
       </div>
 
@@ -474,19 +571,18 @@ function renderForm(item){
 
 function onDriveInput(dirty=true){
   if(dirty) markDirty();
-  const raw = document.getElementById('f_drive_raw').value.trim();
-  const fid = extractDriveId(raw);
-  const prev = document.getElementById('drivePreview');
-  const hId  = document.getElementById('f_drive_file_id');
-  const hUrl = document.getElementById('f_image_public_url');
+  const raw=document.getElementById('f_drive_raw').value.trim();
+  const fid=extractDriveId(raw);
+  const prev=document.getElementById('drivePreview');
+  const hId =document.getElementById('f_drive_file_id');
+  const hUrl=document.getElementById('f_image_public_url');
   if(!raw){ prev.innerHTML=''; hId.value=''; hUrl.value=''; return; }
   if(!fid){
-    prev.innerHTML=`<div class="drive-preview"><span class="drive-preview-error">⚠ No se detectó un ID válido. Revisá el formato.</span></div>`;
+    prev.innerHTML=`<div class="drive-preview"><span class="drive-preview-error">⚠ No se detectó un ID válido.</span></div>`;
     hId.value=''; hUrl.value=''; return;
   }
-  const url = `https://drive.google.com/uc?export=download&id=${fid}`;
-  hId.value  = fid;
-  hUrl.value = url;
+  const url=`https://drive.google.com/uc?export=download&id=${fid}`;
+  hId.value=fid; hUrl.value=url;
   prev.innerHTML=`<div class="drive-preview">
     <img src="${url}" alt="preview" onerror="this.style.opacity='.15'">
     <div class="drive-preview-info">
@@ -496,7 +592,7 @@ function onDriveInput(dirty=true){
 }
 
 function copyDownloadUrl(){
-  const url = document.getElementById('f_image_public_url').value;
+  const url=document.getElementById('f_image_public_url').value;
   if(!url){ toast('Ingresá un ID válido primero','warn'); return; }
   navigator.clipboard.writeText(url).then(()=>toast('URL de descarga copiada'));
 }
@@ -505,129 +601,107 @@ function copyVal(id){
 }
 function markDirty(){
   isDirty=true;
-  const item = DATA.find(d=>d.id===currentId);
+  const item=DATA.find(d=>d.id===currentId);
   if(item){ item.localStatus='dirty'; renderSidebar(document.getElementById('searchInput').value); }
 }
 function updateCount(el){ document.getElementById('charCount').textContent=`${el.value.length} caracteres`; }
 function updateTopbarStatus(item){
-  const map = {
+  const map={
     saved: `<div class="status-row"><div class="status-dot green"></div>Sincronizado con Postgres</div>`,
     dirty: `<div class="status-row"><div class="status-dot amber"></div>Cambios sin guardar</div>`,
     saving:`<div class="status-row"><div class="status-dot amber"></div>Guardando…</div>`,
     error: `<div class="status-row"><div class="status-dot red"></div>Error al guardar</div>`,
     new:   `<div class="status-row"><div class="status-dot gray"></div>Nuevo — no guardado</div>`,
   };
-  document.getElementById('topbarStatus').innerHTML = map[item.localStatus]||'';
+  document.getElementById('topbarStatus').innerHTML=map[item.localStatus]||'';
 }
 
-// ── GUARDAR VIA WEBHOOK ───────────────────────
+// ── GUARDAR ───────────────────────────────────
 async function saveItem(){
   if(currentId===null) return;
-  const idx = DATA.findIndex(d=>d.id===currentId);
+  const idx=DATA.findIndex(d=>d.id===currentId);
   if(idx===-1) return;
-
-  const fid   = document.getElementById('f_drive_file_id').value;
-  const texto = document.getElementById('f_texto').value;
-  if(!fid)       { toast('El ID de imagen de Drive es obligatorio','err'); return; }
-  if(!texto.trim()){ toast('El texto del mensaje no puede estar vacío','err'); return; }
-
-  const isNew   = String(currentId).startsWith('NEW');
-  const payload = {
-    id:               isNew ? null : currentId,
-    servicio:         document.getElementById('f_servicio').value,
-    drive_file_name:  document.getElementById('f_drive_file_name').value.trim(),
-    drive_folder_id:  document.getElementById('f_drive_folder_id').value.trim(),
-    drive_file_id:    fid,
-    image_public_url: document.getElementById('f_image_public_url').value,
-    texto:            texto,
+  const fid  =document.getElementById('f_drive_file_id').value;
+  const texto=document.getElementById('f_texto').value;
+  if(!fid)        { toast('El ID de imagen de Drive es obligatorio','err'); return; }
+  if(!texto.trim()){ toast('El texto no puede estar vacío','err'); return; }
+  const isNew=String(currentId).startsWith('NEW');
+  const payload={
+    id:              isNew ? null : currentId,
+    servicio:        document.getElementById('f_servicio').value,
+    drive_file_name: document.getElementById('f_drive_file_name').value.trim(),
+    drive_folder_id: document.getElementById('f_drive_folder_id').value.trim(),
+    drive_file_id:   fid,
+    image_public_url:document.getElementById('f_image_public_url').value,
+    texto,
   };
-
-  const {url, token} = loadConfig();
-  if(!url){
-    toast('Configurá el webhook primero (botón ⚙ Config)','warn');
-    openConfig();
-    return;
-  }
-
-  // UI: estado guardando
-  DATA[idx].localStatus = 'saving';
+  const {url, token}=loadConfig();
+  if(!url){ toast('Configurá el webhook primero','warn'); openConfig(); return; }
+  DATA[idx].localStatus='saving';
   renderSidebar(document.getElementById('searchInput').value);
   updateTopbarStatus(DATA[idx]);
-  const btn = document.getElementById('btnSave');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Guardando…';
-
+  const btn=document.getElementById('btnSave');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Guardando…';
   try {
-    const headers = {'Content-Type':'application/json'};
-    if(token) headers['X-Panel-Token'] = token;
-    const resp = await fetch(url, {method:'POST', headers, body: JSON.stringify(payload)});
-    const data = await resp.json().catch(()=>({ok:false,message:'Respuesta no válida del servidor'}));
-
-    if(resp.ok && data.ok !== false){
-      // Si el backend devuelve el id real (en caso de nuevo registro), actualizarlo
-      if(data.id && isNew){
-        DATA[idx].id = Number(data.id);
-        currentId = Number(data.id);
-      }
-      DATA[idx] = {...DATA[idx], ...payload, id: DATA[idx].id, localStatus:'saved'};
-      isDirty = false;
-      document.getElementById('topbarTitle').textContent = payload.drive_file_name || `ID ${DATA[idx].id}`;
+    const headers={'Content-Type':'application/json'};
+    if(token) headers['X-Panel-Token']=token;
+    const resp=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)});
+    const data=await resp.json().catch(()=>({ok:false,message:'Respuesta no válida'}));
+    if(resp.ok && data.ok!==false){
+      if(data.id && isNew){ DATA[idx].id=Number(data.id); currentId=Number(data.id); }
+      DATA[idx]={...DATA[idx],...payload,id:DATA[idx].id,localStatus:'saved'};
+      isDirty=false;
+      document.getElementById('topbarTitle').textContent=payload.drive_file_name||`ID ${DATA[idx].id}`;
       renderSidebar(document.getElementById('searchInput').value);
       updateTopbarStatus(DATA[idx]);
       toast('Guardado en Postgres correctamente ✓','ok');
     } else {
-      DATA[idx].localStatus = 'error';
+      DATA[idx].localStatus='error';
       renderSidebar(document.getElementById('searchInput').value);
       updateTopbarStatus(DATA[idx]);
-      toast(`Error: ${data.message||'Respuesta inesperada del servidor'}`,'err');
+      toast(`Error: ${data.message||'Respuesta inesperada'}`,'err');
     }
-  } catch(e) {
-    DATA[idx].localStatus = 'error';
+  } catch(e){
+    DATA[idx].localStatus='error';
     renderSidebar(document.getElementById('searchInput').value);
     updateTopbarStatus(DATA[idx]);
-    toast(`No se pudo conectar con n8n: ${e.message}`,'err');
+    toast(`No se pudo conectar: ${e.message}`,'err');
   }
-
-  btn.disabled = false;
-  btn.textContent = 'Guardar en Postgres';
+  btn.disabled=false; btn.textContent='Guardar en Postgres';
 }
 
 // ── NUEVO ─────────────────────────────────────
 function newItem(){
   if(isDirty && !confirm('Tenés cambios sin guardar. ¿Descartarlos?')) return;
-  const newId = 'NEW_' + (nextTempId++);
-  const item = {id:newId, servicio:'redes_sociales', drive_file_id:'', drive_file_name:'', drive_folder_id:'', image_public_url:'', texto:'', localStatus:'new'};
+  const newId='NEW_'+(nextTempId++);
+  const item={id:newId,servicio:'redes_sociales',drive_file_id:'',drive_file_name:'',drive_folder_id:'',image_public_url:'',texto:'',localStatus:'new'};
   DATA.push(item);
-  isDirty = false;
-  currentId = newId;
-  renderSidebar();
-  renderForm(item);
-  markDirty();
+  isDirty=false; currentId=newId;
+  renderSidebar(); renderForm(item); markDirty();
   toast('Completá los campos y presioná Guardar en Postgres','info');
 }
 
 // ── INACTIVAR ─────────────────────────────────
 function confirmDelete(){
   if(currentId===null) return;
-  const item = DATA.find(d=>d.id===currentId);
-  document.getElementById('deleteModalBody').textContent =
-    `"${item.drive_file_name||'ID '+item.id}" se marcará como INACTIVO en Postgres. Podés reactivarlo cambiando la categoría.`;
+  const item=DATA.find(d=>d.id===currentId);
+  document.getElementById('deleteModalBody').textContent=
+    `"${item.drive_file_name||'ID '+item.id}" se marcará como INACTIVO en Postgres.`;
   document.getElementById('deleteModal').classList.add('open');
 }
 function closeDeleteModal(){ document.getElementById('deleteModal').classList.remove('open'); }
 async function doDelete(){
   closeDeleteModal();
   if(currentId===null) return;
-  const idx = DATA.findIndex(d=>d.id===currentId);
-  DATA[idx].servicio = 'INACTIVO';
-  // Simular que el form refleja el cambio y guardar
+  const idx=DATA.findIndex(d=>d.id===currentId);
+  DATA[idx].servicio='INACTIVO';
   renderForm(DATA[idx]);
   await saveItem();
 }
 
 // ── INIT ──────────────────────────────────────
 checkConfigBanner();
-renderSidebar();
+loadDataFromPostgres();
 </script>
 </body>
 </html>
