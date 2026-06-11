@@ -385,10 +385,10 @@ async function loadDataFromPostgres(){
     DATA = rows.map(row => ({
       id:               row.id,
       servicio:         row.servicio         || '',
-      drive_file_id:    row.drive_file_id    || '',
-      drive_file_name:  row.drive_file_name  || '',
-      drive_folder_id:  row.drive_folder_id  || '',
-      image_public_url: row.image_public_url || '',
+      drive_file_id:    row.drive_file_id    || null,
+      drive_file_name:  row.drive_file_name  || null,
+      drive_folder_id:  row.drive_folder_id  || null,
+      image_public_url: row.image_public_url || null,
       texto:            row.texto            || '',
       created_at:       row.created_at       || '',
       localStatus:      'saved'
