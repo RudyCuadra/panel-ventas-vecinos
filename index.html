@@ -581,14 +581,24 @@ function onDriveInput(dirty=true){
     prev.innerHTML=`<div class="drive-preview"><span class="drive-preview-error">⚠ No se detectó un ID válido.</span></div>`;
     hId.value=''; hUrl.value=''; return;
   }
-  const url=`https://drive.google.com/uc?export=download&id=${fid}`;
-  hId.value=fid; hUrl.value=url;
+  const downloadUrl=`https://drive.google.com/uc?export=download&id=${fid}`;
+  const thumbUrl   =`https://drive.google.com/thumbnail?id=${fid}&sz=w400`;
+  const fullUrl    =`https://drive.google.com/thumbnail?id=${fid}&sz=w1600`;
+  hId.value=fid; hUrl.value=downloadUrl;
   prev.innerHTML=`<div class="drive-preview">
-    <img src="${url}" alt="preview" onerror="this.style.opacity='.15'">
+    <img
+      src="${thumbUrl}"
+      alt="preview"
+      title="Click para ver en grande"
+      onclick="openLightbox('${fullUrl}')"
+      style="cursor:zoom-in"
+      onerror="this.style.opacity='.15';this.title='No se pudo cargar la imagen'">
     <div class="drive-preview-info">
       <div class="drive-preview-name">ID: ${fid}</div>
-      <div class="drive-preview-url">${url}</div>
-    </div></div>`;
+      <div class="drive-preview-url">${downloadUrl}</div>
+    </div>
+    <button class="copy-btn" style="flex-shrink:0" onclick="openLightbox('${fullUrl}')">🔍 Ver</button>
+  </div>`;
 }
 
 function copyDownloadUrl(){
@@ -598,6 +608,42 @@ function copyDownloadUrl(){
 }
 function copyVal(id){
   navigator.clipboard.writeText(document.getElementById(id).value).then(()=>toast('Copiado'));
+}
+
+// ── LIGHTBOX ──────────────────────────────────
+function openLightbox(url){
+  let lb = document.getElementById('lightbox');
+  if(!lb){
+    lb = document.createElement('div');
+    lb.id = 'lightbox';
+    lb.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;z-index:999;cursor:zoom-out;padding:24px;';
+    lb.innerHTML = `
+      <div style="position:relative;max-width:90vw;max-height:90vh">
+        <img id="lbImg" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);display:block;transition:opacity .2s">
+        <div id="lbSpinner" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+          <div class="spin" style="width:32px;height:32px;border-color:rgba(255,255,255,.2);border-top-color:#fff"></div>
+        </div>
+        <button onclick="closeLightbox(event)" style="position:absolute;top:-14px;right:-14px;background:#fff;border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4);line-height:1;">✕</button>
+      </div>`;
+    lb.addEventListener('click', e => { if(e.target===lb) closeLightbox(); });
+    document.body.appendChild(lb);
+  }
+  const img = document.getElementById('lbImg');
+  const spinner = document.getElementById('lbSpinner');
+  img.style.opacity = '0';
+  spinner.style.display = 'flex';
+  lb.style.display = 'flex';
+  document.addEventListener('keydown', function escHandler(e){
+    if(e.key==='Escape'){ closeLightbox(); document.removeEventListener('keydown', escHandler); }
+  });
+  img.onload  = () => { img.style.opacity='1'; spinner.style.display='none'; };
+  img.onerror = () => { spinner.innerHTML='<span style="color:#f04f4f;font-size:13px;text-align:center">No se pudo cargar la imagen</span>'; };
+  img.src = url;
+}
+function closeLightbox(e){
+  if(e) e.stopPropagation();
+  const lb = document.getElementById('lightbox');
+  if(lb){ lb.style.display='none'; document.getElementById('lbImg').src=''; }
 }
 function markDirty(){
   isDirty=true;
