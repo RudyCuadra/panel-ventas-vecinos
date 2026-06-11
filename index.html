@@ -576,7 +576,10 @@ function onDriveInput(dirty=true){
   const prev=document.getElementById('drivePreview');
   const hId =document.getElementById('f_drive_file_id');
   const hUrl=document.getElementById('f_image_public_url');
-  if(!raw){ prev.innerHTML=''; hId.value=''; hUrl.value=''; return; }
+  if(!raw){
+    prev.innerHTML='<div class="drive-preview" style="opacity:.5;font-size:12px;color:var(--text3);padding:8px">Sin imagen — este servicio no requiere imagen.</div>';
+    hId.value=''; hUrl.value=''; return;
+  }
   if(!fid){
     prev.innerHTML=`<div class="drive-preview"><span class="drive-preview-error">⚠ No se detectó un ID válido.</span></div>`;
     hId.value=''; hUrl.value=''; return;
@@ -669,16 +672,15 @@ async function saveItem(){
   if(idx===-1) return;
   const fid  =document.getElementById('f_drive_file_id').value;
   const texto=document.getElementById('f_texto').value;
-  if(!fid)        { toast('El ID de imagen de Drive es obligatorio','err'); return; }
   if(!texto.trim()){ toast('El texto no puede estar vacío','err'); return; }
   const isNew=String(currentId).startsWith('NEW');
   const payload={
-    id:              isNew ? null : currentId,
-    servicio:        document.getElementById('f_servicio').value,
-    drive_file_name: document.getElementById('f_drive_file_name').value.trim(),
-    drive_folder_id: document.getElementById('f_drive_folder_id').value.trim(),
-    drive_file_id:   fid,
-    image_public_url:document.getElementById('f_image_public_url').value,
+    id:               isNew ? null : currentId,
+    servicio:         document.getElementById('f_servicio').value,
+    drive_file_name:  document.getElementById('f_drive_file_name').value.trim() || null,
+    drive_folder_id:  document.getElementById('f_drive_folder_id').value.trim() || null,
+    drive_file_id:    fid || null,
+    image_public_url: document.getElementById('f_image_public_url').value.trim() || null,
     texto,
   };
   const {url, token}=loadConfig();
