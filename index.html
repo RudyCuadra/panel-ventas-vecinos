@@ -259,20 +259,31 @@
 <script>
 // ── CONSTANTES ───────────────────────────────
 const SERVICIOS = [
-  {value:'academia_vecinos',    label:'Academia Vecinos'},
-  {value:'automatizaciones_ia', label:'Automatizaciones IA'},
-  {value:'diseno_marca',        label:'Diseño de Marca'},
-  {value:'diseno_web',          label:'Diseño Web'},
-  {value:'fotografia',          label:'Fotografía'},
-  {value:'redes_sociales',      label:'Redes Sociales'},
-  {value:'video_ugc',           label:'Video UGC'},
-  {value:'INACTIVO',            label:'INACTIVO'},
+  {value:'academia_vecinos',       label:'Academia Vecinos'},
+  {value:'automatizaciones_ia',    label:'Automatizaciones IA'},
+  {value:'campanas_publicitarias', label:'Campañas Publicitarias'},
+  {value:'consultoria_1_1',        label:'Consultorías 1:1'},
+  {value:'diseno_marca',           label:'Diseño de Marca'},
+  {value:'diseno_web',             label:'Diseño Web'},
+  {value:'fotografia',             label:'Fotografía'},
+  {value:'produccion_audiovisual', label:'Producción Audiovisual'},
+  {value:'redes_sociales',         label:'Redes Sociales'},
+  {value:'sistemas_empresariales', label:'Sistemas Empresariales'},
+  {value:'apps_moviles',           label:'Aplicaciones Móviles'},
+  {value:'video_ugc',              label:'Video UGC'},
+  {value:'INACTIVO',               label:'INACTIVO'},
 ];
+// El valor de cada categoria es el 'servicio' que lee el agente de WhatsApp: no renombrarlos.
+// Una categoria que falte en esta lista es peligrosa: el desplegable no tiene su valor, el
+// navegador marca el primero y, al guardar, la ficha cambia de servicio sin avisar.
 const COLORS = {
   academia_vecinos:'#7c6fff', automatizaciones_ia:'#22c97a',
   diseno_marca:'#f0a832',     diseno_web:'#4f9cf0',
   fotografia:'#f06090',       redes_sociales:'#c97af0',
   video_ugc:'#f0732c',        INACTIVO:'#5a5a72',
+  consultoria_1_1:'#2fc4c4',  campanas_publicitarias:'#e0c040',
+  produccion_audiovisual:'#f05050', sistemas_empresariales:'#50b0a0',
+  apps_moviles:'#8aa0ff',
 };
 
 // ── ESTADO ───────────────────────────────────
@@ -434,6 +445,10 @@ async function reloadData(){
 // ── HELPERS ──────────────────────────────────
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function svcLabel(v){ return (SERVICIOS.find(s=>s.value===v)||{label:v}).label; }
+function nextFreeId(){
+  const ids=DATA.map(d=>Number(d.id)).filter(n=>Number.isInteger(n)&&n>0&&n<9000);
+  return (ids.length?Math.max(...ids):0)+1;
+}
 function svcColor(v){ return COLORS[v]||'#9090a8'; }
 function extractDriveId(raw){
   raw=(raw||'').trim();
@@ -675,7 +690,9 @@ async function saveItem(){
   if(!texto.trim()){ toast('El texto no puede estar vacío','err'); return; }
   const isNew=String(currentId).startsWith('NEW');
   const payload={
-    id:               isNew ? null : currentId,
+    // El webhook exige un id numerico: una ficha nueva toma el siguiente libre. Antes se
+    // mandaba null y el guardado fallaba siempre ("id debe ser un numero valido").
+    id:               isNew ? nextFreeId() : currentId,
     servicio:         document.getElementById('f_servicio').value,
     drive_file_name:  document.getElementById('f_drive_file_name').value.trim() || null,
     drive_folder_id:  document.getElementById('f_drive_folder_id').value.trim() || null,
@@ -696,7 +713,7 @@ async function saveItem(){
     const resp=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)});
     const data=await resp.json().catch(()=>({ok:false,message:'Respuesta no válida'}));
     if(resp.ok && data.ok!==false){
-      if(data.id && isNew){ DATA[idx].id=Number(data.id); currentId=Number(data.id); }
+      if(isNew){ const nid=Number(data.id||payload.id); DATA[idx].id=nid; currentId=nid; }
       DATA[idx]={...DATA[idx],...payload,id:DATA[idx].id,localStatus:'saved'};
       isDirty=false;
       document.getElementById('topbarTitle').textContent=payload.drive_file_name||`ID ${DATA[idx].id}`;
