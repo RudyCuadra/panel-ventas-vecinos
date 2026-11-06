@@ -558,11 +558,11 @@ function renderForm(item){
 
       <div class="field span2">
         <div class="divider"><span class="divider-label">Imagen</span><div class="divider-line"></div></div>
-        <label>ID o URL del archivo de imagen en Drive</label>
+        <label>Imagen: ID o URL de Drive, o URL https directa</label>
         <span class="hint">Pegá el ID del archivo, la URL del navegador o la URL de compartir. El panel genera la URL de descarga automáticamente.</span>
         <div class="drive-card">
           <div class="input-row">
-            <input class="input" id="f_drive_raw" value="${esc(item.drive_file_id)}" oninput="onDriveInput()" placeholder="ID o URL de Drive">
+            <input class="input" id="f_drive_raw" value="${esc(item.drive_file_id || item.image_public_url)}" oninput="onDriveInput()" placeholder="ID/URL de Drive o https://…/imagen.jpg">
             <button class="copy-btn" onclick="copyDownloadUrl()">Copiar URL</button>
           </div>
           <div id="drivePreview"></div>
@@ -594,6 +594,22 @@ function onDriveInput(dirty=true){
   if(!raw){
     prev.innerHTML='<div class="drive-preview" style="opacity:.5;font-size:12px;color:var(--text3);padding:8px">Sin imagen — este servicio no requiere imagen.</div>';
     hId.value=''; hUrl.value=''; return;
+  }
+  // URL https directa (no Drive), p. ej. https://vexiia.com/assets/...: se guarda tal cual.
+  // Sin esto, abrir una ficha con imagen fuera de Drive y guardarla le borraba la imagen.
+  if(!fid && /^https:\/\/\S+$/i.test(raw) && !/drive\.google\.com/i.test(raw)){
+    hId.value=''; hUrl.value=raw;
+    const safe=esc(raw);
+    prev.innerHTML=`<div class="drive-preview">
+      <img src="${safe}" alt="preview" title="Click para ver en grande" onclick="openLightbox('${safe}')" style="cursor:zoom-in"
+        onerror="this.style.opacity='.15';this.title='No se pudo cargar la imagen'">
+      <div class="drive-preview-info">
+        <div class="drive-preview-name">URL directa</div>
+        <div class="drive-preview-url">${safe}</div>
+      </div>
+      <button class="copy-btn" style="flex-shrink:0" onclick="openLightbox('${safe}')">🔍 Ver</button>
+    </div>`;
+    return;
   }
   if(!fid){
     prev.innerHTML=`<div class="drive-preview"><span class="drive-preview-error">⚠ No se detectó un ID válido.</span></div>`;
